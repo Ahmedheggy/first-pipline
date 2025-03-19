@@ -33,12 +33,14 @@ build_job:
 test_job:
   stage: test
   script:
-    - apk add --no-cache curl  # ✅ Install curl (required for HTTP requests)
+    - apk add --no-cache curl  # Install curl
     - echo "Starting services..."
     - docker-compose up -d
-    - sleep 10
-    - curl -f http://localhost:8000/ || (echo "App failed to start" && exit 1)
+    - echo "Waiting for Flask app to be ready..."
+    - timeout 60 sh -c 'until curl -sSf http://localhost:8000/; do sleep 5; done'
+    - echo "App is running!"
   tags:
     - docker
   after_script:
-    - docker-compose down  # ✅ Ensure cleanup after test
+    - docker-compose down
+
