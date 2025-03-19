@@ -51,22 +51,22 @@ test_job:
     - name: docker:dind  # ✅ Enable Docker-in-Docker
       command: ["--tls=false"]
   script:
-    - apk add --no-cache curl
+    - apk add --no-cache curl jq  # ✅ Install `jq` for JSON parsing
     - echo "Starting Docker Compose services..."
     - docker-compose up -d --remove-orphans
-    - echo "Checking Docker Networks..."
-    - docker network ls  # ✅ Debug: Show all networks
-    - echo "Checking Containers..."
-    - docker ps -a  # ✅ Debug: List all running and exited containers
-    - echo "Inspecting Network my_network..."
-    - docker network inspect my_network  # ✅ Debug: Show which containers are connected
-    - echo "Checking Logs for Web Container..."
-    - docker logs $(docker ps -q --filter "name=web") || echo "No logs available"  # ✅ Debug: Show Flask logs
+    - echo "Checking running containers..."
+    - docker ps  # ✅ Debug: List running containers
+    - echo "Checking network..."
+    - docker network inspect my_network  # ✅ Debug: Show network details
+    - echo "Getting Web Container IP..."
+    - WEB_IP=$(docker network inspect my_network | jq -r '.Containers[].IPv4Address' | cut -d'/' -f1)
+    - echo "Web Container IP:$WEB_IP"
     - echo "Waiting for Flask app to be ready..."
-    - timeout 60 sh -c 'until curl -sSf http://web:5000/; do sleep 5; done' || (echo "App failed to start" && exit 1)
+    - timeout 60 sh -c "until curl -sSf http://$WEB_IP:5000/; do sleep 5; done" || (echo "App failed to start" && exit 1)
     - echo "App is running!"
   tags:
     - docker
   after_script:
     - echo "Stopping services..."
-    - docker-compose down --remove-orphans || true
+    - docker-compose down --remove-orphans || true  # ✅ Ensure cleanup even if the test fails
+
