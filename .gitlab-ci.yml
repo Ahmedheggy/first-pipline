@@ -1,3 +1,5 @@
+image: python:3.11  # Use an official Python image
+
 stages:
   - build
   - test
@@ -14,6 +16,6 @@ test_job:
   stage: test
   script:
     - echo "Testing the app..."
-    - python app.py
+    - python app.py  # Run your application
   tags:
     - docker
