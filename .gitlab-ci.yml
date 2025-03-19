@@ -1,21 +1,43 @@
-image: python:3.11  # Use an official Python image
+image: docker:latest
+
+services:
+  - docker:dind
+
+variables:
+  POSTGRES_DB: mydatabase
+  POSTGRES_USER: user
+  POSTGRES_PASSWORD: password
+  REDIS_HOST: redis
+  DATABASE_URL: postgresql://user:password@db:5432/mydatabase
+  COMPOSE_HTTP_TIMEOUT: 300
 
 stages:
   - build
   - test
 
+before_script:
+  - apk add --no-cache docker-compose
+  - docker-compose --version
+
 build_job:
   stage: build
   script:
     - echo "Building the app..."
-    - python --version
+    - docker-compose build
   tags:
     - docker
 
 test_job:
   stage: test
   script:
-    - echo "Testing the app..."
-    - python app.py  # Run your application
+    - echo "Starting services..."
+    - docker-compose up -d
+    - echo "Waiting for services to be healthy..."
+    - timeout 60 sh -c 'while ! docker inspect --format "{{.State.Health.Status}}" $(docker-compose ps -q db) | grep "healthy"; do sleep 2; done'
+    - timeout 60 sh -c 'while ! docker inspect --format "{{.State.Health.Status}}" $(docker-compose ps -q redis) | grep "healthy"; do sleep 2; done'
+    - echo "Running tests..."
+    - curl -f http://localhost:8000/ || (echo "App failed to start" && exit 1)
   tags:
     - docker
+  after_script:
+    - docker-compose down
