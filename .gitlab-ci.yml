@@ -24,10 +24,13 @@ before_script:
 
 build_job:
   stage: build
+  services:
+    - name: docker:dind  # ✅ Enable Docker-in-Docker
+      command: ["--tls=false"]
   script:
-    - docker network create my_network || true 
-    - echo "Building the app..."
-    - docker-compose build  # Build the Docker image
+    - apk add --no-cache curl
+    - echo "Building the Docker images..."
+    - docker-compose build --no-cache  # ✅ Build images without needing networks
   tags:
     - docker
     
@@ -39,9 +42,7 @@ test_job:
   script:
     - apk add --no-cache curl
     - echo "Checking if network exists..."
-    - docker network ls | grep "my_network" || docker network create my_network  # ✅ Create network only if it doesn’t exist
-    - echo "Building the app..."
-    - docker-compose build --no-cache  # ✅ Build images after network exists
+    - docker network ls | grep "my_network" || docker network create my_network  # ✅ Create network if not exists
     - echo "Starting Docker Compose services..."
     - docker-compose up -d
     - echo "Checking Docker Networks..."
