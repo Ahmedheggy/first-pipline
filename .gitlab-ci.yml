@@ -51,17 +51,12 @@ test_job:
     - name: docker:dind
       command: ["--tls=false"]
   script:
-    - apk add --no-cache curl jq
+    - echo "Installing curl and jq..."
+    - apk add --no-cache curl jq  # ✅ Install curl and jq
+    - echo "Checking if curl is installed..."
+    - curl --version  # ✅ Verify curl is installed
     - echo "Starting Docker Compose services..."
     - docker-compose up -d --remove-orphans
-    - echo "Checking Docker Networks..."
-    - docker network ls
-    - echo "Checking Running Containers..."
-    - docker ps
-    - echo "Manually connecting web container to my_network..."
-    - docker network connect my_network first_pipeline-web-1 || echo "Already connected"
-    - echo "Re-checking network..."
-    - docker network inspect my_network
     - echo "Getting Web Container IP..."
     - WEB_IP=$(docker network inspect my_network | jq -r '.[] | .Containers | to_entries[] | select(.value.Name=="first_pipeline-web-1") | .value.IPv4Address' | cut -d'/' -f1)
     - echo "Web Container IP:$WEB_IP"
@@ -73,4 +68,3 @@ test_job:
   after_script:
     - echo "Stopping services..."
     - docker-compose down --remove-orphans || true
-
