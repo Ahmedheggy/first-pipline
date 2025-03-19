@@ -1,0 +1,15 @@
+stages:
+  - build
+  - test
+
+build_job:
+  stage: build
+  script:
+    - echo "Building the app..."
+    - python --version
+
+test_job:
+  stage: test
+  script:
+    - echo "Testing the app..."
+    - python app.py
