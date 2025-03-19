@@ -29,26 +29,28 @@ build_job:
       command: ["--tls=false"]
   script:
     - apk add --no-cache curl
+    - echo "Removing networks from docker-compose for build..."
+    - sed '/networks:/,/my_network/d' docker-compose.yml > docker-compose.build.yml  # ✅ Remove networks from a copy
     - echo "Building the Docker images..."
-    - docker-compose build --no-cache  # ✅ Build images without needing networks
+    - docker-compose -f docker-compose.build.yml build --no-cache  # ✅ Build without networks
   tags:
     - docker
-    
+
 test_job:
   stage: test
   services:
-    - name: docker:dind  # ✅ Enable Docker-in-Docker
+    - name: docker:dind
       command: ["--tls=false"]
   script:
     - apk add --no-cache curl
-    - echo "Checking if network exists..."
-    - docker network ls | grep "my_network" || docker network create my_network  # ✅ Create network if not exists
+    - echo "Creating Docker network..."
+    - docker network create my_network || true  # ✅ Create the network manually if it doesn't exist
     - echo "Starting Docker Compose services..."
     - docker-compose up -d
     - echo "Checking Docker Networks..."
-    - docker network ls  # ✅ Debug: Show available networks
+    - docker network ls  # ✅ Debugging: Show available networks
     - echo "Checking Containers..."
-    - docker ps  # ✅ Debug: List running containers
+    - docker ps  # ✅ Debugging: List running containers
     - echo "Waiting for Flask app to be ready..."
     - timeout 60 sh -c 'until curl -sSf http://web:5000/; do sleep 5; done' || (echo "App failed to start" && exit 1)
     - echo "App is running!"
@@ -56,3 +58,4 @@ test_job:
     - docker
   after_script:
     - docker-compose down  # ✅ Stop containers after test
+
