@@ -33,11 +33,15 @@ build_job:
 test_job:
   stage: test
   script:
-    - apk add --no-cache curl  # Install curl
-    - echo "Starting services..."
+    - apk add --no-cache curl
+    - echo "Starting Docker Compose services..."
     - docker-compose up -d
+    - echo "Checking running containers..."
+    - docker ps  # ✅ Show all running containers (debugging)
+    - echo "Checking Flask container logs..."
+    - docker logs $(docker ps -q --filter "name=web")  # ✅ Check Flask logs (debugging)
     - echo "Waiting for Flask app to be ready..."
-    - timeout 60 sh -c 'until curl -sSf http://localhost:8000/; do sleep 5; done'
+    - timeout 60 sh -c 'until curl -sSf http://web:5000/; do sleep 5; done' || (echo "App failed to start" && exit 1)
     - echo "App is running!"
   tags:
     - docker
