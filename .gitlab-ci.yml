@@ -51,20 +51,20 @@ test_job:
     - name: docker:dind
       command: ["--tls=false"]
   script:
-    - echo "Installing curl and jq..."
-    - apk add --no-cache curl jq  # ✅ Install curl and jq
-    - echo "Checking if curl is installed..."
-    - curl --version  # ✅ Verify curl is installed
+    - apk add --no-cache curl jq
     - echo "Starting Docker Compose services..."
     - docker-compose up -d --remove-orphans
-    - echo "Getting Web Container IP..."
+    - echo "Checking network..."
+    - docker network inspect my_network
+    - echo "Extracting Web Container IP..."
     - WEB_IP=$(docker network inspect my_network | jq -r '.[] | .Containers | to_entries[] | select(.value.Name=="first_pipeline-web-1") | .value.IPv4Address' | cut -d'/' -f1)
     - echo "Web Container IP:$WEB_IP"
+    - WEB_IP=$(docker network inspect my_network | jq -r '.[] | .Containers | to_entries[] | .value.IPv4Address' | head -1 | cut -d'/' -f1)
+    - if [ -z "$WEB_IP" ]; then echo "ERROR:WEB_IP is empty!"; exit 1; fi  # ❌ Fail if WEB_IP is empty
     - echo "Waiting for Flask app to be ready..."
-    - timeout 60 sh -c "until curl -sSf http://$WEB_IP:5000/; do sleep 5; done" || (echo "App failed to start" && exit 1)
+    - timeout 60 sh -c "until curl -v http://$WEB_IP:5000/; do sleep 5; done" || (echo "App failed to start" && exit 1)
     - echo "App is running!"
   tags:
     - docker
   after_script:
-    - echo "Stopping services..."
     - docker-compose down --remove-orphans || true
