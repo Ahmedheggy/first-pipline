@@ -52,19 +52,29 @@ test_job:
       command: ["--tls=false"]
   script:
     - apk add --no-cache curl jq
+    - echo "Checking if network exists..."
+    - docker network ls
+    - docker network create my_network || echo "Network already exists"
     - echo "Starting Docker Compose services..."
     - docker-compose up -d --remove-orphans
-    - echo "Checking network..."
+    - echo "Checking Docker Networks..."
+    - docker network ls  # ✅ Debug: Show available networks
+    - echo "Checking Running Containers..."
+    - docker ps -a  # ✅ Debug: Show all running and stopped containers
+    - echo "Ensuring Web Container is inside my_network..."
+    - docker network connect my_network web || echo "Already connected"
+    - echo "Re-checking network..."
     - docker network inspect my_network
     - echo "Extracting Web Container IP..."
-    - WEB_IP=$(docker network inspect my_network | jq -r '.[] | .Containers | to_entries[] | select(.value.Name=="first_pipeline-web-1") | .value.IPv4Address' | cut -d'/' -f1)
+    - WEB_IP=$(docker network inspect my_network | jq -r '.[] | .Containers | to_entries[] | select(.value.Name=="web") | .value.IPv4Address' | cut -d'/' -f1)
+    - if [ -z "$WEB_IP" ]; then echo "ERROR:WEB_IP is empty!"; exit 1; fi
     - echo "Web Container IP:$WEB_IP"
-    - WEB_IP=$(docker network inspect my_network | jq -r '.[] | .Containers | to_entries[] | .value.IPv4Address' | head -1 | cut -d'/' -f1)
-    - if [ -z "$WEB_IP" ]; then echo "ERROR:WEB_IP is empty!"; exit 1; fi  # ❌ Fail if WEB_IP is empty
     - echo "Waiting for Flask app to be ready..."
     - timeout 60 sh -c "until curl -v http://$WEB_IP:5000/; do sleep 5; done" || (echo "App failed to start" && exit 1)
     - echo "App is running!"
   tags:
     - docker
   after_script:
+    - echo "Stopping services..."
     - docker-compose down --remove-orphans || true
+
