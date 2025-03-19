@@ -52,10 +52,8 @@ test_job:
       command: ["--tls=false"]
   script:
     - apk add --no-cache curl
-    - echo "Checking if network exists..."
-    - docker network ls | grep "my_network" || docker network create my_network  # ✅ Create network only if not exists
     - echo "Starting Docker Compose services..."
-    - docker-compose up -d --remove-orphans  # ✅ Force Docker Compose to create missing networks
+    - docker-compose up -d --remove-orphans  # ✅ Let Docker Compose handle network creation
     - echo "Checking Docker Networks..."
     - docker network ls  # ✅ Debug: Show available networks
     - echo "Checking Containers..."
