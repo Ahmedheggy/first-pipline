@@ -1,12 +1,12 @@
-image: docker:24.0.7  # Use a specific Docker version instead of latest
+image: docker:24.0.7  # Use a specific version of Docker
 
 services:
-  - name: docker:24.0.7-dind  # Use a matching Docker-in-Docker version
-    command: ["--tls=false"]  # Disable TLS to fix connection issues
+  - name: docker:24.0.7-dind  # Use Docker-in-Docker (DinD)
+    command: ["--tls=false"]  # Ensure TLS is disabled for connection
 
 variables:
-  DOCKER_HOST: tcp://localhost:2375  # Connect to Docker-in-Docker
-  DOCKER_TLS_CERTDIR: ""  # Ensure TLS is disabled
+  DOCKER_HOST: tcp://docker:2375  # Use 'docker' as the hostname (matches the service name)
+  DOCKER_TLS_CERTDIR: ""  # Disable TLS to prevent authentication issues
   POSTGRES_DB: mydatabase
   POSTGRES_USER: user
   POSTGRES_PASSWORD: password
@@ -20,12 +20,16 @@ stages:
 
 before_script:
   - apk add --no-cache docker-compose  # Install docker-compose
-  - docker --version  # Check Docker installation
-  - docker-compose --version  # Check docker-compose installation
+  - docker --version  # Verify Docker is installed
+  - docker-compose --version  # Verify docker-compose is installed
+  - docker info  # Debug Docker status
 
 build_job:
   stage: build
   script:
+    - echo "Waiting for Docker daemon to be ready..."
+    - sleep 20  # Give Docker-in-Docker enough time to start
+    - docker ps  # List running containers to check if Docker is available
     - echo "Building the app..."
     - docker-compose build  # Build the Docker image
   tags:
