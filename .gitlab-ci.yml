@@ -52,21 +52,16 @@ test_job:
       command: ["--tls=false"]
   script:
     - apk add --no-cache curl jq
-    - echo "Checking if network exists..."
-    - docker network ls
-    - docker network create my_network || echo "Network already exists"
-    - echo "Starting Docker Compose services..."
-    - docker-compose up -d --remove-orphans
     - echo "Checking Docker Networks..."
-    - docker network ls  # ✅ Debug: Show available networks
+    - docker network ls  # ✅ Show available networks
     - echo "Checking Running Containers..."
-    - docker ps -a  # ✅ Debug: Show all running and stopped containers
-    - echo "Ensuring Web Container is inside my_network..."
-    - docker network connect my_network web || echo "Already connected"
+    - docker ps -a  # ✅ Show running & stopped containers
+    - echo "Ensuring Web Container is inside first_pipeline_my_network..."
+    - docker network connect first_pipeline_my_network first_pipeline-web-1 || echo "Already connected"
     - echo "Re-checking network..."
-    - docker network inspect my_network
+    - docker network inspect first_pipeline_my_network  # ✅ Use correct network name
     - echo "Extracting Web Container IP..."
-    - WEB_IP=$(docker network inspect my_network | jq -r '.[] | .Containers | to_entries[] | select(.value.Name=="web") | .value.IPv4Address' | cut -d'/' -f1)
+    - WEB_IP=$(docker network inspect first_pipeline_my_network | jq -r '.[] | .Containers | to_entries[] | select(.value.Name=="first_pipeline-web-1") | .value.IPv4Address' | cut -d'/' -f1)
     - if [ -z "$WEB_IP" ]; then echo "ERROR:WEB_IP is empty!"; exit 1; fi
     - echo "Web Container IP:$WEB_IP"
     - echo "Waiting for Flask app to be ready..."
@@ -75,6 +70,20 @@ test_job:
   tags:
     - docker
   after_script:
-    - echo "Stopping services..."
     - docker-compose down --remove-orphans || true
+
+debug_networks:
+  stage: test
+  services:
+    - name: docker:dind  # ✅ Enable Docker-in-Docker
+      command: ["--tls=false"]
+  script:
+    - echo "Checking Docker Networks..."
+    - docker network ls  # ✅ List available networks
+    - echo "Inspecting my_network..."
+    - docker network inspect my_network || echo "Network does not exist"
+  tags:
+    - docker
+  when: manual  # ✅ Allows you to manually trigger the job in GitLab UI
+  allow_failure: true  # ✅ Prevents pipeline from failing while debugging
 
