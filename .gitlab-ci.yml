@@ -37,8 +37,10 @@ test_job:
       command: ["--tls=false"]
   script:
     - apk add --no-cache curl
+    - echo "Building the Docker images..."
+    - docker-compose build  # ✅ Build images without needing a network
     - echo "Creating Docker network..."
-    - docker network create my_network || true  # ✅ Create network if it doesn't exist
+    - docker network create my_network || true  # ✅ Manually create the network
     - echo "Starting Docker Compose services..."
     - docker-compose up -d
     - echo "Checking Docker Networks..."
