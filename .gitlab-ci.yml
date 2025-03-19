@@ -25,6 +25,7 @@ before_script:
 build_job:
   stage: build
   script:
+    - docker network create my_network || true 
     - echo "Building the app..."
     - docker-compose build  # Build the Docker image
   tags:
