@@ -32,16 +32,27 @@ build_job:
 
 test_job:
   stage: test
+  services:
+    - name: docker:dind  # ✅ Enable Docker-in-Docker
+      command: ["--tls=false"]
   script:
     - apk add --no-cache curl
     - echo "Starting Docker Compose services..."
     - docker-compose up -d
+    - echo "Connecting the GitLab Runner to the network..."
+    - docker network connect my_network $(hostname)  # ✅ Attach GitLab Runner to the same network
     - echo "Waiting for Flask app to be ready..."
-    - docker ps -a  #  Check docker containers 
-    - echo "Checking Flask container logs..."
-    - timeout 30 sh -c 'until curl -sSf http://host.docker.internal:8000/; do sleep 5; done' || (echo "App failed to start" && exit 1)
+    - timeout 60 sh -c 'until curl -sSf http://web:5000/; do sleep 5; done' || (echo "App failed to start" && exit 1)
     - echo "App is running!"
+    - echo "Checking Docker Networks..."
+    - docker network ls  # ✅ List all Docker networks
+    - echo "Checking Containers..."
+    - docker ps  # ✅ List running containers
+    - echo "Inspecting Network..."
+    - docker network inspect my_network  # ✅ Show which containers are connected
+
   tags:
     - docker
   after_script:
-    - docker-compose down
+    - docker-compose down  # ✅ Stop containers after test
+

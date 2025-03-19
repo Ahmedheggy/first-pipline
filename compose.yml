@@ -5,6 +5,8 @@ services:
     build: .
     ports:
       - "8000:5000"
+    networks:
+      - my_network
     depends_on:
       db:
         condition: service_healthy
@@ -16,6 +18,8 @@ services:
   db:
     image: postgres:latest
     restart: always
+    networks:
+      - my_network
     env_file:
       - .env
     volumes:
@@ -29,6 +33,8 @@ services:
   redis:
     image: redis:latest
     restart: always
+    networks:
+      - my_network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
