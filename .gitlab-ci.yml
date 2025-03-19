@@ -51,13 +51,17 @@ test_job:
     - name: docker:dind  # ✅ Enable Docker-in-Docker
       command: ["--tls=false"]
   script:
-    - apk add --no-cache curl jq  # ✅ Install `jq` for JSON parsing
+    - apk add --no-cache curl jq
     - echo "Starting Docker Compose services..."
     - docker-compose up -d --remove-orphans
-    - echo "Checking running containers..."
+    - echo "Checking Docker Networks..."
+    - docker network ls  # ✅ Debug: Show available networks
+    - echo "Checking Running Containers..."
     - docker ps  # ✅ Debug: List running containers
-    - echo "Checking network..."
-    - docker network inspect my_network  # ✅ Debug: Show network details
+    - echo "Manually connecting web container to my_network..."
+    - docker network connect my_network first_pipeline-web-1 || echo "Already connected"
+    - echo "Re-checking network..."
+    - docker network inspect my_network  # ✅ Verify that web is inside the network
     - echo "Getting Web Container IP..."
     - WEB_IP=$(docker network inspect my_network | jq -r '.Containers[].IPv4Address' | cut -d'/' -f1)
     - echo "Web Container IP:$WEB_IP"
@@ -68,5 +72,4 @@ test_job:
     - docker
   after_script:
     - echo "Stopping services..."
-    - docker-compose down --remove-orphans || true  # ✅ Ensure cleanup even if the test fails
-
+    - docker-compose down --remove-orphans || true
