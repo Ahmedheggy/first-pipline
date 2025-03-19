@@ -33,11 +33,12 @@ build_job:
 test_job:
   stage: test
   script:
+    - apk add --no-cache curl  # ✅ Install curl (required for HTTP requests)
     - echo "Starting services..."
     - docker-compose up -d
-    - sleep 10  # Wait for PostgreSQL and Redis
+    - sleep 10
     - curl -f http://localhost:8000/ || (echo "App failed to start" && exit 1)
   tags:
     - docker
   after_script:
-    - docker-compose down  # Clean up after the test
+    - docker-compose down  # ✅ Ensure cleanup after test
