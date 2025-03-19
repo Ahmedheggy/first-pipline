@@ -7,9 +7,13 @@ build_job:
   script:
     - echo "Building the app..."
     - python --version
+  tags:
+    - docker
 
 test_job:
   stage: test
   script:
     - echo "Testing the app..."
     - python app.py
+  tags:
+    - docker
