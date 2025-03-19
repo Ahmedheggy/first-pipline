@@ -30,6 +30,7 @@ build_job:
     - docker-compose build  # Build the Docker image
   tags:
     - docker
+    
 test_job:
   stage: test
   services:
@@ -37,10 +38,10 @@ test_job:
       command: ["--tls=false"]
   script:
     - apk add --no-cache curl
+    - echo "Checking if network exists..."
+    - docker network ls | grep "my_network" || docker network create my_network  # ✅ Create network only if it doesn’t exist
     - echo "Building the app..."
-    - docker-compose build --no-cache  # ✅ Build images without needing networks
-    - echo "Creating Docker network..."
-    - docker network create my_network || true  # ✅ Manually create the network if it doesn’t exist
+    - docker-compose build --no-cache  # ✅ Build images after network exists
     - echo "Starting Docker Compose services..."
     - docker-compose up -d
     - echo "Checking Docker Networks..."
@@ -54,6 +55,3 @@ test_job:
     - docker
   after_script:
     - docker-compose down  # ✅ Stop containers after test
-
-
-
