@@ -93,8 +93,17 @@ deploy:
   script:
     - echo "Checking if image exists locally..."
     - docker images | grep $IMAGE_NAME || (echo "Image not found locally, exiting deployment" && exit 1)
+    
     - echo "Stopping previous container..."
     - docker stop flask_app || true
     - docker rm flask_app || true
-    - echo "Running the new container..."
-    - docker run -d --name flask_app -p 5000:5000 first_pipeline-web:latest
+    
+    - echo "Starting services with Docker Compose..."
+    - docker-compose up -d  # Start containers
+
+    - echo "Waiting for services to be healthy..."
+    - sleep 10  # Adjust based on service startup time
+
+    - echo "Verifying running containers..."
+    - docker ps
+
