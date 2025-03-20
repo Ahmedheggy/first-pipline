@@ -1,39 +1,39 @@
-image: docker:24.0.7  # Use a Docker image
+image: docker:24.0.7  # Use a specific Docker image
 
 variables:
-  DOCKER_HOST: unix:///var/run/docker.sock  # Use socket mounting
+  DOCKER_HOST: unix:///var/run/docker.sock  # Use socket mounting for Docker
   DOCKER_TLS_CERTDIR: ""  # Disable TLS to prevent authentication issues
-  POSTGRES_DB: mydatabase
-  POSTGRES_USER: user
-  POSTGRES_PASSWORD: password
-  REDIS_HOST: redis
-  DATABASE_URL: postgresql://user:password@db:5432/mydatabase
-  COMPOSE_HTTP_TIMEOUT: 300  # Avoid timeout issues
-  REGISTRY: https://registry.example.com/root/first_pipeline
-  IMAGE_NAME: first_pipeline
+  POSTGRES_DB: mydatabase  # Database name for PostgreSQL
+  POSTGRES_USER: user  # Username for PostgreSQL
+  POSTGRES_PASSWORD: password  # Password for PostgreSQL
+  REDIS_HOST: redis  # Redis hostname
+  DATABASE_URL: postgresql://user:password@db:5432/mydatabase  # Database connection URL
+  COMPOSE_HTTP_TIMEOUT: 300  # Increase timeout for Docker Compose operations
+  REGISTRY: https://registry.example.com/root/first_pipeline  # Docker registry URL
+  IMAGE_NAME: first_pipeline  # Name of the Docker image to be built
 
 stages:
-  - build
-  - test
-  - deploy
+  - build  # First stage: Building the application
+  - test  # Second stage: Testing the application
+  - deploy  # Third stage: Deploying the application
 
 before_script:
-  - apk add --no-cache docker-compose  # Install docker-compose
+  - apk add --no-cache docker-compose  # Install Docker Compose
   - docker --version  # Verify Docker installation
-  - docker-compose --version  # Verify docker-compose installation
+  - docker-compose --version  # Verify Docker Compose installation
   - echo "Ensuring Docker is ready..."
-  - sleep 5  # Give Docker time to initialize
-  - docker info  # Debug Docker status
+  - sleep 5  # Allow time for Docker to initialize
+  - docker info  # Debugging: Display Docker system info
 
 build_job:
-  stage: build
+  stage: build  # Assign job to build stage
   services:
-    - name: docker:dind  # ✅ Enable Docker-in-Docker
-      command: ["--tls=false"]
+    - name: docker:dind  # Enable Docker-in-Docker service
+      command: ["--tls=false"]  # Disable TLS for Docker-in-Docker
   script:
-    - apk add --no-cache curl
+    - apk add --no-cache curl  # Install curl for HTTP requests
     - echo "Checking out the repository..."
-    - ls -la  # ✅ Debug: List all files to verify `compose.yml` is present
+    - ls -la  # Debugging: List all files to confirm presence of compose.yml
     - |
       if test -f compose.yml; then
         echo "compose.yml exists!";
@@ -42,68 +42,66 @@ build_job:
         exit 1;
       fi
     - echo "Removing networks from compose.yml for build..."
-    - sed '/networks:/,/my_network/d' compose.yml > compose.build.yml  # ✅ Remove networks from a copy
+    - sed '/networks:/,/my_network/d' compose.yml > compose.build.yml  # Remove networks from a copy
     - echo "Building the Docker images..."
-    - docker-compose -f compose.build.yml build --no-cache
+    - docker-compose -f compose.build.yml build --no-cache  # Build images without using cache
   tags:
-    - docker
-
+    - docker  # Assign runner tag
 
 test:
-  image: docker:24.0.7
+  image: docker:24.0.7  # Use the same Docker image
   services:
-    - docker:dind
+    - docker:dind  # Enable Docker-in-Docker
   before_script:
-    - apk add --no-cache docker-compose curl
-    - docker --version
-    - docker-compose --version
+    - apk add --no-cache docker-compose curl  # Install dependencies
+    - docker --version  # Verify Docker installation
+    - docker-compose --version  # Verify Docker Compose installation
   script:
     - echo "Starting Docker Compose services..."
-    - docker-compose up -d
+    - docker-compose up -d  # Start containers in detached mode
     - echo "Waiting for the web service to start..."
-    - sleep 20  # Increased wait time
+    - sleep 20  # Allow time for services to initialize
     - echo "Testing web service from inside the container..."
-    - docker-compose exec web curl http://localhost:5000
+    - docker-compose exec web curl http://localhost:5000  # Test web service response
     - echo "Fetching web container logs..."
-    - docker logs first_pipeline-web-1
+    - docker logs first_pipeline-web-1  # Fetch logs from the web container
   after_script:
     - echo "Stopping services..."
-    - docker-compose down
+    - docker-compose down  # Stop and remove services
 
 debug_networks:
-  stage: test
+  stage: test  # Assign job to the test stage
   services:
-    - name: docker:dind  # ✅ Enable Docker-in-Docker
-      command: ["--tls=false"]
+    - name: docker:dind  # Enable Docker-in-Docker
+      command: ["--tls=false"]  # Disable TLS
   script:
     - echo "Checking Docker Networks..."
-    - docker network ls  # ✅ List available networks
+    - docker network ls  # List all available Docker networks
     - echo "Inspecting my_network..."
-    - docker network inspect my_network || echo "Network does not exist"
+    - docker network inspect my_network || echo "Network does not exist"  # Check if specific network exists
   tags:
-    - docker
-  allow_failure: true  # ✅ Prevents pipeline from failing while debugging
+    - docker  # Assign runner tag
+  allow_failure: true  # Prevent pipeline failure due to network debugging
 
 deploy:
-  stage: deploy
+  stage: deploy  # Assign job to deploy stage
   only:
-    - main
+    - main  # Run this job only on the main branch
   before_script:
-    - apk add --no-cache docker-compose
+    - apk add --no-cache docker-compose  # Install Docker Compose
   script:
     - echo "Checking if image exists locally..."
     - docker images | grep $IMAGE_NAME || (echo "Image not found locally, exiting deployment" && exit 1)
     
     - echo "Stopping previous container..."
-    - docker stop flask_app || true
-    - docker rm flask_app || true
+    - docker stop flask_app || true  # Stop the running container if exists
+    - docker rm flask_app || true  # Remove the stopped container
     
     - echo "Starting services with Docker Compose..."
-    - docker-compose up -d  # Start containers
+    - docker-compose up -d  # Start containers in detached mode
 
     - echo "Waiting for services to be healthy..."
-    - sleep 10  # Adjust based on service startup time
+    - sleep 10  # Allow time for services to initialize
 
     - echo "Verifying running containers..."
-    - docker ps
-
+    - docker ps  # List running containers
