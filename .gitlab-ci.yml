@@ -47,32 +47,17 @@ build_job:
 
 test_job:
   stage: test
-  image: docker:24.0.7  # ✅ Use the latest stable Docker image
-  variables:
-    DOCKER_HOST: "tcp://host.docker.internal:2375"  # ✅ Use host's Docker daemon
-    DOCKER_DRIVER: "overlay2"
-    COMPOSE_PROJECT_NAME: "my_app_test"  # ✅ Unique project name to avoid conflicts
-  before_script:
-    - apk add --no-cache curl jq docker-cli-compose  # ✅ Ensure dependencies
-    - echo "Ensuring Docker is ready..."
-    - sleep 10
-    - docker info || (echo "Docker failed to connect"; exit 1)
   script:
-    - echo "Checking Docker Networks..."
-    - docker network ls
-    - echo "Ensuring my_network exists..."
-    - docker network create my_network || echo "Network already exists"
     - echo "Starting Docker Compose services..."
-    - docker-compose up -d --remove-orphans
-    - echo "Checking Running Containers..."
-    - docker ps -a
-    - echo "Waiting for services to be healthy..."
-    - timeout 60 sh -c 'until docker-compose ps | grep "healthy"; do sleep 5; done' || (echo "Services failed to start"; docker-compose logs; exit 1)
-    - echo "Running tests..."
-    - docker-compose exec -T <service_name> <test_command>  # ✅ Replace with your test command
+    - docker-compose up -d  # Start containers
+    - sleep 5  # Wait for containers to initialize
+    - docker ps  # List running containers
+    - echo "Checking if web service is running..."
+    - curl -v http://localhost:8000/ || (echo "App failed to start"; exit 1)
   after_script:
-    - echo "Tearing down Docker Compose services..."
-    - docker-compose down --remove-orphans || true
+    - echo "Stopping services..."
+    - docker-compose down
+
 
 debug_networks:
   stage: test
