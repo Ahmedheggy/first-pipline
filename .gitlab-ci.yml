@@ -79,6 +79,5 @@ debug_networks:
     - docker network inspect my_network || echo "Network does not exist"
   tags:
     - docker
-  when: manual  # ✅ Allows you to manually trigger the job in GitLab UI
   allow_failure: true  # ✅ Prevents pipeline from failing while debugging
 
