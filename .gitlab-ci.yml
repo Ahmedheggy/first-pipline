@@ -50,12 +50,16 @@ test_job:
   script:
     - echo "Starting Docker Compose services..."
     - docker-compose up -d  # Start containers
-    - sleep 5  # Wait for containers to initialize
-    - docker ps  # List running containers
-    - apk add --no-cache wget
+    - echo "Waiting for the web service to start..."
+    - sleep 10  # Increase wait time
     - echo "Checking if web service is running..."
-    - wget -qO- http://localhost:8000/ || (echo "App failed to start"; exit 1)
-
+    - |
+      for i in {1..10}; do
+        curl -v http://localhost:8000/ && break || echo "Retrying in 2 seconds...";
+        sleep 2;
+      done || (echo "App failed to start"; exit 1)
+    - echo "Fetching web container logs..."
+    - docker logs first_pipeline-web-1
   after_script:
     - echo "Stopping services..."
     - docker-compose down
