@@ -51,6 +51,7 @@ test_job:
   variables:
     DOCKER_HOST: "tcp://host.docker.internal:2375"  # ✅ Use host's Docker daemon
     DOCKER_DRIVER: "overlay2"
+    COMPOSE_PROJECT_NAME: "my_app_test"  # ✅ Unique project name to avoid conflicts
   before_script:
     - apk add --no-cache curl jq docker-cli-compose  # ✅ Ensure dependencies
     - echo "Ensuring Docker is ready..."
@@ -65,7 +66,12 @@ test_job:
     - docker-compose up -d --remove-orphans
     - echo "Checking Running Containers..."
     - docker ps -a
+    - echo "Waiting for services to be healthy..."
+    - timeout 60 sh -c 'until docker-compose ps | grep "healthy"; do sleep 5; done' || (echo "Services failed to start"; docker-compose logs; exit 1)
+    - echo "Running tests..."
+    - docker-compose exec -T <service_name> <test_command>  # ✅ Replace with your test command
   after_script:
+    - echo "Tearing down Docker Compose services..."
     - docker-compose down --remove-orphans || true
 
 debug_networks:
