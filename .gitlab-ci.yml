@@ -9,7 +9,7 @@ variables:
   REDIS_HOST: redis
   DATABASE_URL: postgresql://user:password@db:5432/mydatabase
   COMPOSE_HTTP_TIMEOUT: 300  # Avoid timeout issues
-  REGISTRY: 192.168.1.4:5000/root/first_pipeline  # Update with your actual registry URL
+  REGISTRY: https://registry.example.com/root/first_pipeline
   IMAGE_NAME: first_pipeline
 
 stages:
@@ -88,9 +88,13 @@ deploy:
   stage: deploy
   only:
     - main
+  before_script:
+    - apk add --no-cache docker-compose
   script:
+    - echo "Testing registry connection..."
+    - curl -v $REGISTRY/v2/ || echo "Registry is not reachable!"
     - echo "Logging into GitLab Registry..."
-    - docker login --username=root --password=$GITLAB_ACCESS_TOKEN http://192.168.1.4:5000
+    - docker login --username=root --password=$GITLAB_ACCESS_TOKEN $REGISTRY
     - echo "Checking if image exists..."
     - docker manifest inspect $REGISTRY:latest || exit 1
     - echo "Pulling image from registry..."
@@ -101,4 +105,3 @@ deploy:
     - echo "Running the new container..."
     - docker run -d --name flask_app -p 5000:5000 $REGISTRY:latest
     - netstat -tulnp | grep 5000
-
