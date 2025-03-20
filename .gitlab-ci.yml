@@ -52,8 +52,10 @@ test_job:
     - docker-compose up -d  # Start containers
     - sleep 5  # Wait for containers to initialize
     - docker ps  # List running containers
+    - apk add --no-cache wget
     - echo "Checking if web service is running..."
-    - curl -v http://localhost:8000/ || (echo "App failed to start"; exit 1)
+    - wget -qO- http://localhost:8000/ || (echo "App failed to start"; exit 1)
+
   after_script:
     - echo "Stopping services..."
     - docker-compose down
