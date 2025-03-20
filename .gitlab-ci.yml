@@ -9,7 +9,8 @@ variables:
   REDIS_HOST: redis
   DATABASE_URL: postgresql://user:password@db:5432/mydatabase
   COMPOSE_HTTP_TIMEOUT: 300  # Avoid timeout issues
-
+  IMAGE_NAME: first_pipeline  # Set a proper image name
+  REGISTRY: $CI_REGISTRY_IMAGE  # Use GitLab’s default registry variable
 stages:
   - build
   - test
@@ -87,8 +88,10 @@ deploy:
   only:
     - main  # Deploy only on the main branch
   script:
+    - echo "REGISTRY:$REGISTRY"
+    - echo "IMAGE_NAME:$IMAGE_NAME"
+    - echo "Full Image Path:$REGISTRY/$IMAGE_NAME:latest"
     - docker pull $REGISTRY/$IMAGE_NAME:latest
     - docker stop flask_app || true
     - docker rm flask_app || true
     - docker run -d --name flask_app -p 5000:5000 $REGISTRY/$IMAGE_NAME:latest
-
