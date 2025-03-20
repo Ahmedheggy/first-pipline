@@ -90,7 +90,7 @@ deploy:
     - main
   script:
     - echo "Logging into GitLab Registry..."
-    - echo "$GITLAB_ACCESS_TOKEN" | docker login 192.168.1.4:5000 -u root --password-stdin
+    - docker login --username=root --password=$GITLAB_ACCESS_TOKEN http://192.168.1.4:5000
     - echo "Checking if image exists..."
     - docker manifest inspect $REGISTRY:latest || exit 1
     - echo "Pulling image from registry..."
@@ -100,3 +100,5 @@ deploy:
     - docker rm flask_app || true
     - echo "Running the new container..."
     - docker run -d --name flask_app -p 5000:5000 $REGISTRY:latest
+    - netstat -tulnp | grep 5000
+
