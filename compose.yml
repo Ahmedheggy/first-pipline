@@ -6,7 +6,7 @@ services:
     ports:
       - "8000:5000"
     networks:
-      - first_pipeline_my_network 
+      - my_network
     depends_on:
       db:
         condition: service_healthy
@@ -34,7 +34,7 @@ services:
     image: redis:latest
     restart: always
     networks:
-      - first_pipeline_my_network
+      - my_network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -44,4 +44,4 @@ services:
 volumes:
   db_data:
 networks:
-  first_pipeline_my_network:
+  my_network:
