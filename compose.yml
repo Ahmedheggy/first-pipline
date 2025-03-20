@@ -1,9 +1,8 @@
-version: '3.8'
+
 
 services:
   web:
     build: .
-    container_name: flask_app
     ports:
       - "8000:5000"
     networks:
@@ -15,16 +14,9 @@ services:
         condition: service_healthy
     env_file:
       - .env
-    restart: always  # Ensures Flask restarts on failure
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000"]
-      interval: 10s
-      retries: 5
-      start_period: 10s
 
   db:
     image: postgres:latest
-    container_name: first_pipeline-db-1
     restart: always
     networks:
       - my_network
@@ -40,7 +32,6 @@ services:
 
   redis:
     image: redis:latest
-    container_name: first_pipeline-redis-1
     restart: always
     networks:
       - my_network
@@ -52,6 +43,5 @@ services:
 
 volumes:
   db_data:
-
 networks:
   my_network:
