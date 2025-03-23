@@ -108,7 +108,4 @@ deploy:
     - docker images | grep $IMAGE_NAME || (echo "Image not found locally, exiting deployment" && exit 1)
     - echo "Deploying the container..."
     - docker-compose up -d  # Start the application
-  tags:
-    - docker  # Ensure the runner has the correct tag
-    - echo "Verifying running containers..."
-    - docker ps  # List running containers
+ 
