@@ -59,9 +59,11 @@ test:
   script:
     - echo "Starting Docker Compose services..."
     - docker-compose up -d  # Start containers in detached mode
-    - echo "Waiting for the web service to start..."
-    - sleep 20  # Allow time for services to initialize
-    - echo "Testing web service from inside the container..."
+    - echo "Waiting for the web service to be ready..."
+    - until docker-compose exec web curl -s http://localhost:5000; do
+      echo "Waiting...";
+      sleep 5;
+     done
     - docker-compose exec web curl http://localhost:5000  # Test web service response
     - echo "Fetching web container logs..."
     - docker logs first_pipeline-web-1  # Fetch logs from the web container
