@@ -91,6 +91,8 @@ debug_networks:
 deploy:
   image: docker:24.0.7  # Use Docker image
   stage: deploy
+  only:
+    - main  # Run this job only on the main branch
   services:
     - name: docker:dind
       command: ["--tls=false"]  # Disable TLS to allow connection
