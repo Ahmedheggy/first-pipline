@@ -1,14 +1,8 @@
 image: docker:24.0.7  # Use a specific Docker image
 
-
-services:
-  - docker:dind
-
-
 variables:
-  DOCKER_HOST: tcp://docker:2375
-  DOCKER_DRIVER: overlay2
-  DOCKER_TLS_CERTDIR: "" # Disable TLS to prevent authentication issues
+  DOCKER_HOST: unix:///var/run/docker.sock  # Use socket mounting for Docker
+  DOCKER_TLS_CERTDIR: ""  # Disable TLS to prevent authentication issues
   POSTGRES_DB: mydatabase  # Database name for PostgreSQL
   POSTGRES_USER: user  # Username for PostgreSQL
   POSTGRES_PASSWORD: password  # Password for PostgreSQL
