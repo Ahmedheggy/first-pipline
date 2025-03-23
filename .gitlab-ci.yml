@@ -49,27 +49,26 @@ build_job:
     - docker  # Assign runner tag
 
 test:
-  image: docker:24.0.7  # Use the same Docker image
+  image: docker:24.0.7
   services:
-    - docker:dind  # Enable Docker-in-Docker
+    - name: docker:dind
+      command: ["--tls=false"]
+  variables:
+    DOCKER_HOST: tcp://docker:2375  # Use TCP instead of a Unix socket
   before_script:
-    - apk add --no-cache docker-compose curl  # Install dependencies
-    - docker --version  # Verify Docker installation
-    - docker-compose --version  # Verify Docker Compose installation
+    - apk add --no-cache docker-compose curl
+    - docker --version
+    - docker-compose --version
   script:
+    - echo "Waiting for Docker to be ready..."
+    - until docker info; do echo "Waiting..."; sleep 3; done
     - echo "Starting Docker Compose services..."
-    - docker-compose up -d  # Start containers in detached mode
-    - echo "Waiting for the web service to be ready..."
-    - until docker-compose exec web curl -s http://localhost:5000; do
-      echo "Waiting...";
-      sleep 5;
-     done
-    - docker-compose exec web curl http://localhost:5000  # Test web service response
-    - echo "Fetching web container logs..."
-    - docker logs first_pipeline-web-1  # Fetch logs from the web container
+    - docker-compose up -d
+    - echo "Running tests..."
+    - docker-compose exec web curl http://localhost:5000
   after_script:
     - echo "Stopping services..."
-    - docker-compose down  # Stop and remove services
+    - docker-compose down
 
 debug_networks:
   stage: test  # Assign job to the test stage
