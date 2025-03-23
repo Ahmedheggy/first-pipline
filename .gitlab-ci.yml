@@ -1,20 +1,21 @@
-image: docker:24.0.7  # Use a specific Docker image
-
-variables:
-  DOCKER_HOST: "tcp://docker:2375"  # Correct Docker-in-Docker host
-  DOCKER_TLS_CERTDIR: ""  # Disable TLS to prevent authentication issues
-  COMPOSE_HTTP_TIMEOUT: 300  # Increase timeout for Docker Compose operations
-  POSTGRES_DB: mydatabase
-  POSTGRES_USER: user
-  POSTGRES_PASSWORD: password
-  REDIS_HOST: redis
-  DATABASE_URL: postgresql://user:password@db:5432/mydatabase
-  REGISTRY: https://registry.example.com/root/first_pipeline
-  IMAGE_NAME: first_pipeline
+image: docker:24.0.7  # Use the latest Docker image
 
 services:
-  - name: docker:dind  # Start Docker-in-Docker
-    command: ["--tls=false"]  # Disable TLS for easier connection
+  - name: docker:stable-dind  # Enable Docker-in-Docker
+    command: ["--tls=false"]  # Allow connections without TLS
+    # REQUIRED for `dind` to work properly
+
+variables:
+  DOCKER_HOST: "tcp://docker:2375"  # Ensure GitLab CI connects to Docker
+  DOCKER_TLS_CERTDIR: ""  # Disable TLS to avoid errors
+
+
+build-job:
+  stage: build
+  script:
+    - docker build -t myapp .
+    - docker run -d -p 8000:5000 myapp
+
 
 stages:
   - build
