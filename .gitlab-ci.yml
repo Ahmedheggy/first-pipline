@@ -26,14 +26,14 @@ before_script:
   - docker info  # Debugging: Display Docker system info
 
 build_job:
-  stage: build  # Assign job to build stage
+  stage: build
   services:
-    - name: docker:dind  # Enable Docker-in-Docker service
-      command: ["--tls=false"]  # Disable TLS for Docker-in-Docker
+    - name: docker:dind
+      command: ["--tls=false"]  # Disable TLS to prevent issues
   script:
-    - apk add --no-cache curl  # Install curl for HTTP requests
+    - apk add --no-cache curl jq docker-compose  # Install dependencies
     - echo "Checking out the repository..."
-    - ls -la  # Debugging: List all files to confirm presence of compose.yml
+    - ls -la  # Debugging: List all files
     - |
       if test -f compose.yml; then
         echo "compose.yml exists!";
@@ -42,11 +42,15 @@ build_job:
         exit 1;
       fi
     - echo "Removing networks from compose.yml for build..."
-    - sed '/networks:/,/my_network/d' compose.yml > compose.build.yml  # Remove networks from a copy
-    - echo "Building the Docker images..."
-    - docker-compose -f compose.build.yml build --no-cache  # Build images without using cache
+    - sed '/networks:/,/my_network/d' compose.yml > compose.build.yml
+    - echo "Logging into GitLab Container Registry..."
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - echo "Building and pushing Docker image..."
+    - docker-compose -f compose.build.yml build --no-cache
+    - docker tag $IMAGE_NAME "$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG"
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG"
   tags:
-    - docker  # Assign runner tag
+    - docker
 
 test:
   image: docker:24.0.7
@@ -89,24 +93,32 @@ debug_networks:
   allow_failure: true  # Prevent pipeline failure due to network debugging
 
 deploy:
-  image: docker:24.0.7  # Use Docker image
+  image: docker:24.0.7
   stage: deploy
   only:
     - main  # Run this job only on the main branch
   services:
     - name: docker:dind
-      command: ["--tls=false"]  # Disable TLS to allow connection
+      command: ["--tls=false"]  # Disable TLS for Docker-in-Docker
   variables:
-    DOCKER_HOST: "tcp://docker:2375"  # Explicitly use the Docker daemon
+    DOCKER_HOST: "tcp://docker:2375"  # Use TCP connection
     DOCKER_TLS_CERTDIR: ""  # Disable TLS for easier communication
   before_script:
-    - apk add --no-cache docker-compose  # Install Docker Compose
-    - docker --version  # Verify Docker installation
-    - docker-compose --version  # Verify Docker Compose installation
+    - apk add --no-cache docker-compose jq  # Install dependencies
+    - docker --version
+    - docker-compose --version
+    - echo "Logging into GitLab Container Registry..."
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
-    - echo "Checking if image exists locally..."
-    - docker images | grep $IMAGE_NAME || (echo "Image not found locally, exiting deployment" && exit 1)
-    - echo "Deploying the container..."
-    - docker-compose up -d  # Start the application
+    - echo "Pulling the latest image..."
+    - docker pull "$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG"
+    - echo "Stopping existing containers..."
+    - docker-compose down || echo "No running containers to stop"
+    - echo "Updating compose.yml with the latest image..."
+    - sed -i "s|image:.*|image:$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG|g" compose.yml
+    - echo "Deploying the updated container..."
+    - docker-compose up -d
+    - echo "Verifying running containers..."
+    - docker ps
   tags:
-      - docker  # Assign runner tag
+    - docker
