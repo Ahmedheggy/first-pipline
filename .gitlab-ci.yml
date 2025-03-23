@@ -60,12 +60,16 @@ test:
     - docker --version
     - docker-compose --version
   script:
-    - echo "Waiting for Docker to be ready..."
-    - until docker info; do echo "Waiting..."; sleep 3; done
-    - echo "Starting Docker Compose services..."
-    - docker-compose up -d
-    - echo "Running tests..."
-    - docker-compose exec web curl http://localhost:5000
+  - echo "Starting Docker Compose services..."
+  - docker-compose up -d
+  - echo "Waiting for the web service to start..."
+  - sleep 30  # Increase wait time
+  - echo "Verifying web service is running..."
+  - docker-compose ps  # Check container status
+  - echo "Fetching web container logs..."
+  - docker-compose logs web
+  - echo "Testing web service..."
+  - docker-compose exec web curl -v http://0.0.0.0:5000
   after_script:
     - echo "Stopping services..."
     - docker-compose down
