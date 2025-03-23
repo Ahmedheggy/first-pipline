@@ -99,6 +99,8 @@ deploy:
     - apk add --no-cache docker-compose
     - docker --version
     - docker-compose --version
+    - docker ps -q --filter "publish=8000" | xargs -r docker stop || true
+
   script:
     - echo "Checking if image exists locally..."
     - docker images | grep $IMAGE_NAME || (echo "Image not found locally, exiting deployment" && exit 1)
