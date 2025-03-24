@@ -1,42 +1,47 @@
 image: docker:24.0.7  # Use a specific Docker image
 
 variables:
-  LOCAL_RUN: "false"  # Default (set to "true" locally)
-  DOCKER_HOST: "tcp://docker:2375"  # Use TCP for Docker daemon
-  DOCKER_TLS_CERTDIR: ""
+  DOCKER_TLS_CERTDIR: ""  # Disable TLS to prevent authentication issues
+  COMPOSE_HTTP_TIMEOUT: 300  # Increase timeout for Docker Compose operations
+
+# Detect if running locally
+before_script:
+  - |
+    if [[ "$LOCAL_RUN" == "true" ]]; then 
+      echo "Running locally - skipping Docker-in-Docker setup";
+    else
+      echo "Running on GitLab CI - enabling Docker-in-Docker";
+      apk add --no-cache docker-compose curl  # Install dependencies
+      echo "Waiting for Docker to start...";
+      sleep 10;  # Allow time for Docker to initialize
+      docker info;
+    fi
 
 stages:
   - build
   - test
   - deploy
 
-before_script:
-  - if [[ "$LOCAL_RUN" == "true" ]]; then
-      echo "Running locally - skipping Docker-in-Docker setup";
-    else
-      apk add --no-cache docker-compose curl;
-      echo "Waiting for Docker to start...";
-      sleep 20;
-      docker info;
-    fi
-
 build_job:
   stage: build
-  rules:
-    - if: '$LOCAL_RUN == "false"'
   services:
     - name: docker:dind
+      alias: docker
       command: ["--tls=false"]
   script:
-    - echo "Building Docker images..."
-    - docker-compose build --no-cache  # Build images without cache
+    - echo "Building the Docker images..."
+    - docker-compose build --no-cache
 
 test:
   stage: test
+  services:
+    - name: docker:dind
+      alias: docker
+      command: ["--tls=false"]
   script:
-    - echo "Starting services..."
+    - echo "Starting Docker Compose services..."
     - docker-compose up -d
-    - sleep 10
+    - sleep 10  # Allow services to initialize
     - docker ps
     - docker-compose logs web
 
@@ -45,6 +50,6 @@ deploy:
   only:
     - main
   script:
-    - echo "Deploying container..."
+    - echo "Deploying the container..."
     - docker-compose up -d
     - docker ps
