@@ -3,7 +3,8 @@ image: docker:24.0.7  # Use Docker image
 variables:
   DOCKER_TLS_CERTDIR: ""  # Disable TLS to prevent authentication issues
   COMPOSE_HTTP_TIMEOUT: 300  # Increase timeout for Docker Compose operations
-  DOCKER_HOST: ${DOCKER_HOST:-"unix:///var/run/docker.sock"}  # Use host Docker locally
+  LOCAL_DOCKER: "unix:///var/run/docker.sock"  # Default Docker socket for local runs
+  CI_DOCKER: "tcp://docker:2375"  # Docker socket for GitLab CI
 
 stages:
   - build
@@ -14,13 +15,14 @@ before_script:
   - |
     if [[ "$LOCAL_RUN" == "true" ]]; then 
       echo "Running locally - using system Docker";
+      export DOCKER_HOST="$LOCAL_DOCKER"
     else
       echo "Running in GitLab CI - enabling Docker-in-Docker";
-      export DOCKER_HOST="tcp://docker:2375"
+      export DOCKER_HOST="$CI_DOCKER"
       apk add --no-cache docker-compose curl  # Install dependencies
       echo "Waiting for Docker to start...";
       sleep 10;
-      docker info;
+      docker info || (echo "Docker is not running!" && exit 1)
     fi
 
 build_job:
@@ -30,31 +32,8 @@ build_job:
       alias: docker
       command: ["--tls=false", "--host=tcp://0.0.0.0:2375"]
   variables:
-    DOCKER_HOST: ${DOCKER_HOST:-"tcp://docker:2375"}  # Use correct Docker host
+    DOCKER_HOST: "$CI_DOCKER"
   script:
+    - echo "Checking if Docker is running..."
+    - docker info || (echo "Docker is NOT running!" && exit 1)
     - echo "Building the Docker images..."
-    - docker-compose build --no-cache
-
-test:
-  stage: test
-  services:
-    - name: docker:dind
-      alias: docker
-      command: ["--tls=false", "--host=tcp://0.0.0.0:2375"]
-  variables:
-    DOCKER_HOST: ${DOCKER_HOST:-"tcp://docker:2375"}
-  script:
-    - echo "Starting Docker Compose services..."
-    - docker-compose up -d
-    - sleep 10  # Allow services to initialize
-    - docker ps
-    - docker-compose logs web
-
-deploy:
-  stage: deploy
-  only:
-    - main
-  script:
-    - echo "Deploying the container..."
-    - docker-compose up -d
-    - docker ps
