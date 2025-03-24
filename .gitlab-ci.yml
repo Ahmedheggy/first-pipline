@@ -1,17 +1,9 @@
 image: docker:24.0.7  # Use a specific Docker image
 
 variables:
-  DOCKER_HOST: "tcp://docker:2375"  # Use TCP instead of Unix socket
-  DOCKER_TLS_CERTDIR: ""  # Disable TLS to prevent authentication issues
-  POSTGRES_DB: mydatabase
-  POSTGRES_USER: user
-  POSTGRES_PASSWORD: password
-  REDIS_HOST: redis
-  DATABASE_URL: postgresql://user:password@db:5432/mydatabase
-  COMPOSE_HTTP_TIMEOUT: 300
-  REGISTRY: https://registry.example.com/root/first_pipeline
-  IMAGE_NAME: first_pipeline
-  GITLAB_CI: "$CI_SERVER"
+  LOCAL_RUN: "false"  # Default (set to "true" locally)
+  DOCKER_HOST: "tcp://docker:2375"  # Use TCP for Docker daemon
+  DOCKER_TLS_CERTDIR: ""
 
 stages:
   - build
@@ -19,71 +11,40 @@ stages:
   - deploy
 
 before_script:
-  - apk add --no-cache docker-compose curl
-  - echo "Waiting for Docker to start..."
-  - sleep 20  # Allow time for Docker daemon to initialize
-  - docker info  # Debugging: Display Docker system info
+  - if [[ "$LOCAL_RUN" == "true" ]]; then
+      echo "Running locally - skipping Docker-in-Docker setup";
+    else
+      apk add --no-cache docker-compose curl;
+      echo "Waiting for Docker to start...";
+      sleep 20;
+      docker info;
+    fi
 
 build_job:
   stage: build
-  services:
-    - name: docker:dind
-      command: ["--tls=false"]  # Ensure Docker-in-Docker starts without TLS
-  script:
-    - echo "Checking out the repository..."
-    - ls -la  # Debugging: List files
-    - |
-      if test -f compose.yml; then
-        echo "compose.yml exists!";
-      else
-        echo "ERROR: compose.yml is missing!";
-        exit 1;
-      fi
-    - echo "Building the Docker images..."
-    - docker-compose build --no-cache  # Build images without cache
-  tags:
-    - docker
-
-test:
-  stage: test
+  rules:
+    - if: '$LOCAL_RUN == "false"'
   services:
     - name: docker:dind
       command: ["--tls=false"]
-  before_script:
-    - apk add --no-cache docker-compose curl
-    - echo "Waiting for Docker to start..."
-    - sleep 20  # Allow time for Docker daemon to initialize
-    - docker info  # Debugging: Display Docker system info
   script:
-    - echo "Starting Docker Compose services..."
+    - echo "Building Docker images..."
+    - docker-compose build --no-cache  # Build images without cache
+
+test:
+  stage: test
+  script:
+    - echo "Starting services..."
     - docker-compose up -d
-    - echo "Waiting for the web service to start..."
-    - sleep 30
-    - echo "Testing web service..."
-    - docker-compose exec web curl -v http://0.0.0.0:5000 || (echo "Test failed!" && exit 1)
-    - echo "Fetching web container logs..."
+    - sleep 10
+    - docker ps
     - docker-compose logs web
-  after_script:
-    - echo "Stopping services..."
-    - docker-compose down
 
 deploy:
   stage: deploy
   only:
     - main
-  before_script:
-    - apk add --no-cache docker-compose
-    - echo "Waiting for Docker to start..."
-    - sleep 20  # Allow time for Docker daemon to initialize
-    - docker info  # Debugging: Display Docker system info
   script:
-    - echo "Checking if image exists locally..."
-    - docker images | grep $IMAGE_NAME || (echo "Image not found locally, exiting deployment" && exit 1)
-    - echo "Stopping previous container..."
-    - docker stop flask_app || true  # Stop running container if exists
-    - docker rm flask_app || true  # Remove stopped container
-    - echo "Deploying the container..."
+    - echo "Deploying container..."
     - docker-compose up -d
-    - sleep 10  # Allow services to initialize
-    - echo "Verifying running containers..."
     - docker ps
