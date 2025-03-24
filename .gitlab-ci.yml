@@ -1,33 +1,36 @@
-image: docker:24.0.7  # Use a specific Docker image
+image: docker:24.0.7  # Use Docker image
 
 variables:
   DOCKER_TLS_CERTDIR: ""  # Disable TLS to prevent authentication issues
   COMPOSE_HTTP_TIMEOUT: 300  # Increase timeout for Docker Compose operations
-
-# Detect if running locally
-before_script:
-  - |
-    if [[ "$LOCAL_RUN" == "true" ]]; then 
-      echo "Running locally - skipping Docker-in-Docker setup";
-    else
-      echo "Running on GitLab CI - enabling Docker-in-Docker";
-      apk add --no-cache docker-compose curl  # Install dependencies
-      echo "Waiting for Docker to start...";
-      sleep 10;  # Allow time for Docker to initialize
-      docker info;
-    fi
+  DOCKER_HOST: ${DOCKER_HOST:-"unix:///var/run/docker.sock"}  # Use host Docker locally
 
 stages:
   - build
   - test
   - deploy
 
+before_script:
+  - |
+    if [[ "$LOCAL_RUN" == "true" ]]; then 
+      echo "Running locally - using system Docker";
+    else
+      echo "Running in GitLab CI - enabling Docker-in-Docker";
+      export DOCKER_HOST="tcp://docker:2375"
+      apk add --no-cache docker-compose curl  # Install dependencies
+      echo "Waiting for Docker to start...";
+      sleep 10;
+      docker info;
+    fi
+
 build_job:
   stage: build
   services:
     - name: docker:dind
       alias: docker
-      command: ["--tls=false"]
+      command: ["--tls=false", "--host=tcp://0.0.0.0:2375"]
+  variables:
+    DOCKER_HOST: ${DOCKER_HOST:-"tcp://docker:2375"}  # Use correct Docker host
   script:
     - echo "Building the Docker images..."
     - docker-compose build --no-cache
@@ -37,7 +40,9 @@ test:
   services:
     - name: docker:dind
       alias: docker
-      command: ["--tls=false"]
+      command: ["--tls=false", "--host=tcp://0.0.0.0:2375"]
+  variables:
+    DOCKER_HOST: ${DOCKER_HOST:-"tcp://docker:2375"}
   script:
     - echo "Starting Docker Compose services..."
     - docker-compose up -d
