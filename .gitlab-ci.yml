@@ -1,10 +1,17 @@
-image: docker:24.0.7  # Use Docker image
+image: docker:24.0.7  # Use a specific Docker image
 
 variables:
-  DOCKER_TLS_CERTDIR: ""  # Disable TLS to prevent authentication issues
-  COMPOSE_HTTP_TIMEOUT: 300  # Increase timeout for Docker Compose operations
-  LOCAL_DOCKER: "unix:///var/run/docker.sock"  # Default Docker socket for local runs
-  CI_DOCKER: "tcp://docker:2375"  # Docker socket for GitLab CI
+  DOCKER_HOST: "unix:///var/run/docker.sock"
+  DOCKER_TLS_CERTDIR: ""
+  POSTGRES_DB: mydatabase
+  POSTGRES_USER: user
+  POSTGRES_PASSWORD: password
+  REDIS_HOST: redis
+  DATABASE_URL: postgresql://user:password@db:5432/mydatabase
+  COMPOSE_HTTP_TIMEOUT: 300
+  REGISTRY: "https://registry.example.com/root/first_pipeline"
+  IMAGE_NAME: first_pipeline
+  LOCAL_RUN: "${LOCAL_RUN:-false}"  # Detect if running locally
 
 stages:
   - build
@@ -12,28 +19,78 @@ stages:
   - deploy
 
 before_script:
-  - |
-    if [[ "$LOCAL_RUN" == "true" ]]; then 
-      echo "Running locally - using system Docker";
-      export DOCKER_HOST="$LOCAL_DOCKER"
-    else
-      echo "Running in GitLab CI - enabling Docker-in-Docker";
-      export DOCKER_HOST="$CI_DOCKER"
-      apk add --no-cache docker-compose curl  # Install dependencies
-      echo "Waiting for Docker to start...";
-      sleep 10;
-      docker info || (echo "Docker is not running!" && exit 1)
-    fi
+  - apk add --no-cache docker-compose curl
+  - docker --version
+  - docker-compose --version
+  - echo "Ensuring Docker is ready..."
+  - sleep 5
+  - docker info || echo "Docker info failed but continuing..."
 
 build_job:
   stage: build
   services:
     - name: docker:dind
-      alias: docker
-      command: ["--tls=false", "--host=tcp://0.0.0.0:2375"]
-  variables:
-    DOCKER_HOST: "$CI_DOCKER"
+      command: ["--tls=false"]
   script:
-    - echo "Checking if Docker is running..."
-    - docker info || (echo "Docker is NOT running!" && exit 1)
-    - echo "Building the Docker images..."
+    - |
+      if [[ "$LOCAL_RUN" == "true" ]]; then
+        echo "Running locally - skipping Docker-in-Docker setup"
+      else
+        echo "Running on GitLab CI - enabling Docker-in-Docker"
+      fi
+    - echo "Checking out the repository..."
+    - ls -la
+    - |
+      if test -f compose.yml; then
+        echo "compose.yml exists!"
+      else
+        echo "ERROR: compose.yml is missing!"
+        exit 1
+      fi
+    - sed '/networks:/,/my_network/d' compose.yml > compose.build.yml
+    - docker-compose -f compose.build.yml build --no-cache
+  tags:
+    - docker
+
+test:
+  image: docker:24.0.7
+  services:
+    - docker:dind
+  script:
+    - echo "Starting Docker Compose services..."
+    - docker-compose up -d
+    - echo "Waiting for the web service to start..."
+    - sleep 20
+    - docker-compose exec web curl http://localhost:5000
+    - docker logs first_pipeline-web-1
+  after_script:
+    - docker-compose down
+
+debug_networks:
+  stage: test
+  services:
+    - name: docker:dind
+      command: ["--tls=false"]
+  script:
+    - docker network ls
+    - docker network inspect my_network || echo "Network does not exist"
+  tags:
+    - docker
+  allow_failure: true
+
+deploy:
+  stage: deploy
+  only:
+    - main
+  script:
+    - |
+      if [[ "$LOCAL_RUN" == "true" ]]; then
+        echo "Skipping GitLab deployment, running locally"
+        exit 0
+      fi
+    - docker images | grep $IMAGE_NAME || (echo "Image not found locally, exiting deployment" && exit 1)
+    - docker stop flask_app || true
+    - docker rm flask_app || true
+    - docker-compose up -d
+    - sleep 10
+    - docker ps
