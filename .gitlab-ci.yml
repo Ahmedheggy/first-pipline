@@ -1,93 +1,116 @@
+# Base Docker image for all jobs (Docker 24.0.7)
 image: docker:24.0.7
 
+# Environment variables
 variables:
+  # Connect to host's Docker daemon (Docker-out-of-Docker)
   DOCKER_HOST: unix:///var/run/docker.sock
+  # Disable TLS for Docker (not needed for local socket)
   DOCKER_TLS_CERTDIR: ""
+  # Custom image name for your application
   IMAGE_NAME: first_pipeline
+  # Container name (unused in this script)
   CONTAINER_NAME: flask_app
 
+# CI/CD stages
 stages:
-  - build
-  - test
-  - deploy
+  - build   # Stage 1: Build Docker image
+  - test    # Stage 2: Run tests
+  - deploy  # Stage 3: Deploy to production
 
+# Runs before every job
 before_script:
+  # Install Docker Compose in Alpine Linux (lightweight)
   - apk add --no-cache docker-compose
+  # Print Docker version (debugging)
   - docker --version
+  # Print Docker Compose version (debugging)
   - docker-compose --version
 
 build_job:
-  stage: build
+  stage: build  # Belongs to "build" stage
   script:
-    # Secure Docker Hub login with token
+    # Log into Docker Hub using a CI/CD variable ($DOCKER_TOKEN)
     - echo "$DOCKER_TOKEN" | docker login -u "ahmedheggy" --password-stdin
     
-    # Build and push the image
+    # Build Docker image with Git commit SHA as tag
     - docker build -t ahmedheggy/$IMAGE_NAME:$CI_COMMIT_SHA .
+    # Push the image to Docker Hub
     - docker push ahmedheggy/$IMAGE_NAME:$CI_COMMIT_SHA
     
-    # Also tag as 'latest' (optional)
+    # Tag the same image as "latest" (optional)
     - docker tag ahmedheggy/$IMAGE_NAME:$CI_COMMIT_SHA ahmedheggy/$IMAGE_NAME:latest
+    # Push the "latest" tag to Docker Hub
     - docker push ahmedheggy/$IMAGE_NAME:latest
   tags:
-    - docker
+    - docker  # Run on a runner with Docker support
 
 test:
-  stage: test
+  stage: test  # Belongs to "test" stage
+  # Use Docker-in-Docker (DinD) for testing
   image: docker:24.0.7
   services:
-    - docker:dind
+    - docker:dind  # Embedded Docker daemon
   before_script:
+    # Install dependencies
     - apk add --no-cache docker-compose curl
+    # Verify Docker is working
     - docker --version
     - docker-compose --version
   script:
+    # Start containers in detached mode
     - echo "Starting Docker Compose services..."
     - docker-compose up -d
+    # Wait for services to initialize
     - echo "Waiting for the web service to start..."
     - sleep 20
+    # Test the web service (curl from inside the container)
     - echo "Testing web service from inside the container..."
     - docker-compose exec web curl http://localhost:5000
+    # Check container logs
     - echo "Fetching web container logs..."
     - docker logs first_pipeline-web-1
   after_script:
+    # Clean up containers after testing
     - echo "Stopping services..."
     - docker-compose down
   tags:
-    - docker
+    - docker  # Run on a runner with Docker support
 
 deploy:
-  stage: deploy
+  stage: deploy  # Belongs to "deploy" stage
   only:
-    - main
+    - main  # Only run for the "main" branch (production)
   script:
     # Install required tools
     - apk add --no-cache bash coreutils
     
-    # Docker Hub login
+    # Log into Docker Hub
     - echo "$DOCKER_TOKEN" | docker login -u "ahmedheggy" --password-stdin
     
-    # Pull the specific version and latest from Docker Hub
+    # Pull the specific image version from Docker Hub
     - docker pull ahmedheggy/$IMAGE_NAME:$CI_COMMIT_SHA
-    - docker pull ahmedheggy/$IMAGE_NAME:latest || true  # Continue if latest doesn't exist
+    # Pull "latest" tag (ignore failure if it doesn't exist)
+    - docker pull ahmedheggy/$IMAGE_NAME:latest || true
     
-    # Tag the specific version as latest
+    # Tag the specific version as "latest" (for rollbacks)
     - docker tag ahmedheggy/$IMAGE_NAME:$CI_COMMIT_SHA ahmedheggy/$IMAGE_NAME:latest
     
-    # Clean up previous deployment
+    # Stop and remove old containers (ignore errors if none exist)
     - docker-compose down --remove-orphans || true
     
-    # Deploy with compose using the pulled image
+    # Deploy new containers with the pulled image
+    # (TAG=$CI_COMMIT_SHA ensures the correct version is used)
     - TAG=$CI_COMMIT_SHA docker-compose up -d
     
-    # Wait for services to be healthy (simplified)
+    # Health check: Wait up to 60s for services to be "healthy"
     - for i in {1..12}; do
         docker-compose ps | grep -q "healthy" && break;
         sleep 5;
       done
     
-    # Verify deployment
-    - docker-compose ps
-    - docker-compose logs --tail=50
+    # Verify deployment status
+    - docker-compose ps  # Show running containers
+    - docker-compose logs --tail=50  # Show recent logs
   tags:
-    - docker
+    - docker  # Run on a runner with Docker support

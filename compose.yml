@@ -1,49 +1,78 @@
-version: '3.8'
+version: '3.8'  # Uses Docker Compose schema version 3.8 (supports modern features)
 
 services:
   web:
-    image: ahmedheggy/first_pipeline:${TAG:-latest}  # Uses the image from Docker Hub
+    # Uses your pre-built image from Docker Hub (with TAG or falls back to "latest")
+    image: ahmedheggy/first_pipeline:${TAG:-latest}  
+    
+    # Maps host port 8000 → container port 5000 (host:container)
     ports:
-      - "8000:5000"
+      - "8000:5000"  
+    
+    # Connects to a custom network for inter-service communication
     networks:
-      - my_network
+      - my_network  
+    
+    # Waits for db/redis to be healthy before starting
     depends_on:
       db:
-        condition: service_healthy
+        condition: service_healthy  
       redis:
-        condition: service_healthy
+        condition: service_healthy  
+    
+    # Loads environment variables from .env file (must exist on server)
     env_file:
-      - .env  # Ensure .env is available on the deployment server
+      - .env  
 
   db:
-    image: postgres:latest
-    restart: always
+    # Official PostgreSQL image (latest stable version)
+    image: postgres:latest  
+    
+    # Auto-restarts if the container crashes
+    restart: always  
+    
+    # Connects to the same network as the web service
     networks:
-      - my_network
+      - my_network  
+    
+    # Loads DB credentials from .env (e.g., POSTGRES_USER, POSTGRES_PASSWORD)
     env_file:
-      - .env
+      - .env  
+    
+    # Persists database data to a named volume (avoids data loss)
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql/data  
+    
+    # Health check to verify DB is ready
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-      interval: 5s
-      retries: 5
-      start_period: 10s
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]  
+      interval: 5s  # Checks every 5 seconds
+      retries: 5    # Retries 5 times before marking as unhealthy
+      start_period: 10s  # Waits 10s before first check
 
   redis:
-    image: redis:latest
-    restart: always
+    # Official Redis image (latest stable version)
+    image: redis:latest  
+    
+    # Auto-restarts if the container crashes
+    restart: always  
+    
+    # Connects to the same network
     networks:
-      - my_network
+      - my_network  
+    
+    # Health check to verify Redis is responsive
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      retries: 5
-      start_period: 10s
+      test: ["CMD", "redis-cli", "ping"]  # Sends a PING command
+      interval: 5s  
+      retries: 5  
+      start_period: 10s  
 
+# Named volume for PostgreSQL data persistence (avoids data loss on container restart)
 volumes:
   db_data:
 
+# Custom bridge network for secure inter-service communication
 networks:
   my_network:
-    driver: bridge
+    driver: bridge # Uses Linux bridge networking (default)

@@ -52,11 +52,9 @@ cd first-pipeline
 ```bash
 git clone https://gitlab.com/ahmadhany122/first-pipeline.git
 cd first-pipeline
+```
 
-###################################################################################################
-*  you can use : git remote add if you have a local repo
-####################################################################################################
-
+> 💡 Tip: You can also use `git remote add` if you already have a local repo.
 
 ### 2️⃣ Create a `.env` File
 Create a `.env` file in the root directory:
@@ -87,7 +85,7 @@ SELECT * FROM visits;
 
 ---
 
-## 📦 CI/CD Pipeline (GitLab)[If you need to use GitHub actions u need to migrate]
+## 📦 CI/CD Pipeline (GitLab)
 
 This project integrates **GitLab CI/CD** to **automate testing, building, and deploying** new versions whenever updates are pushed to the repository.
 
@@ -95,59 +93,23 @@ This project integrates **GitLab CI/CD** to **automate testing, building, and de
 
 1️⃣ **Build** – Ensures Docker is set up and builds the application image.  
 2️⃣ **Test** – Runs automated integration tests.  
-3️⃣ **Debug Networks** – Checks network configurations inside Docker.  
 4️⃣ **Deploy** – Deploys the updated application automatically.  
 
-### 📜 Pipeline Configuration (`.gitlab-ci.yml`)
+---
 
-```yaml
-image: docker:24.0.7  # Using Docker as the base image
+### ✅ What’s New in CI/CD Flow?
 
-variables:
-  DOCKER_HOST: unix:///var/run/docker.sock  # Enable Docker socket
-  COMPOSE_HTTP_TIMEOUT: 300  # Prevent timeout errors
-  IMAGE_NAME: flask_app
+In the **build stage**, we:
+- Pull the base image.
+- Build the custom Docker image.
+- Push the built image to **Docker Hub** for storage and reuse.
 
-stages:
-  - build
-  - test
-  - deploy
+In the **deploy stage**, we:
+- Pull the pushed image from **Docker Hub**.
+- Deploy the container using the updated image.
 
-before_script:
-  - apk add --no-cache docker-compose  # Install docker-compose
-  - docker --version  # Verify Docker installation
-  - docker-compose --version  # Verify docker-compose installation
+This allows for **faster, consistent deployments** across environments by using a centralized image repository.
 
-build_job:
-  stage: build
-  services:
-    - name: docker:dind  # Enable Docker-in-Docker
-      command: ["--tls=false"]
-  script:
-    - docker-compose build --no-cache  # Build fresh image
-  tags:
-    - docker
-
-test:
-  stage: test
-  services:
-    - docker:dind
-  script:
-    - docker-compose up -d
-    - sleep 20  # Wait for services to start
-    - docker-compose exec web curl http://localhost:5000  # Test API response
-  after_script:
-    - docker-compose down  # Stop containers
-
-deploy:
-  stage: deploy
-  only:
-    - main  # Deploy only on main branch
-  script:
-    - docker stop flask_app || true  # Stop running container
-    - docker rm flask_app || true  # Remove old container
-    - docker-compose up -d  # Start new deployment
-```
 
 ---
 
@@ -198,16 +160,7 @@ docker ps
 
 ---
 
-## 📈 Future Enhancements
-
-✅ **Logging & Monitoring** – Add Prometheus/Grafana for observability.  
-✅ **CI/CD Security** – Implement container scanning for vulnerabilities.  
-✅ **Automated Database Migrations** – Use Alembic for schema updates.  
-
----
-
 ## 💡 Summary
 
 This project integrates **Flask, PostgreSQL, and Redis** with **Docker** for easy deployment.  
-It features a **fully automated GitLab CI/CD pipeline**, ensuring that each update is **tested and deployed seamlessly**.  
-
+It features a **fully automated GitLab CI/CD pipeline**, ensuring that each update is **tested and deployed seamlessly**.
