@@ -8,6 +8,7 @@ variables:
 
 stages:
   - build
+  - test
   - deploy
 
 before_script:
@@ -31,6 +32,30 @@ build_job:
   tags:
     - docker
 
+test:
+  stage: test
+  image: docker:24.0.7
+  services:
+    - docker:dind
+  before_script:
+    - apk add --no-cache docker-compose curl
+    - docker --version
+    - docker-compose --version
+  script:
+    - echo "Starting Docker Compose services..."
+    - docker-compose up -d
+    - echo "Waiting for the web service to start..."
+    - sleep 20
+    - echo "Testing web service from inside the container..."
+    - docker-compose exec web curl http://localhost:5000
+    - echo "Fetching web container logs..."
+    - docker logs first_pipeline-web-1
+  after_script:
+    - echo "Stopping services..."
+    - docker-compose down
+  tags:
+    - docker
+
 deploy:
   stage: deploy
   only:
@@ -42,14 +67,17 @@ deploy:
     # Docker Hub login
     - echo "$DOCKER_TOKEN" | docker login -u "ahmedheggy" --password-stdin
     
-    # Pull and tag the image
-    - docker pull ahmedheggy/first_pipeline:$CI_COMMIT_SHA
-    - docker tag ahmedheggy/first_pipeline:$CI_COMMIT_SHA ahmedheggy/first_pipeline:latest
+    # Pull the specific version and latest from Docker Hub
+    - docker pull ahmedheggy/$IMAGE_NAME:$CI_COMMIT_SHA
+    - docker pull ahmedheggy/$IMAGE_NAME:latest || true  # Continue if latest doesn't exist
+    
+    # Tag the specific version as latest
+    - docker tag ahmedheggy/$IMAGE_NAME:$CI_COMMIT_SHA ahmedheggy/$IMAGE_NAME:latest
     
     # Clean up previous deployment
     - docker-compose down --remove-orphans || true
     
-    # Deploy with compose
+    # Deploy with compose using the pulled image
     - TAG=$CI_COMMIT_SHA docker-compose up -d
     
     # Wait for services to be healthy (simplified)
@@ -61,3 +89,5 @@ deploy:
     # Verify deployment
     - docker-compose ps
     - docker-compose logs --tail=50
+  tags:
+    - docker
