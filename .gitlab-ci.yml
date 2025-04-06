@@ -7,24 +7,24 @@ variables:
   REGISTRY: docker.io
   IMAGE_NAME: first_pipeline
 
+services:
+  - name: docker:dind
+    alias: docker
+    command: ["--tls=false", "--host=tcp://0.0.0.0:2375"]
+
 stages:
   - build
   - deploy
 
-services:
-  - name: docker:dind
-    command: ["--tls=false", "--host=tcp://0.0.0.0:2375"]
-
 before_script:
-  - apk add --no-cache docker-compose openssh-client
+  - apk add --no-cache docker-compose
   - docker --version
   - docker-compose --version
 
 build_job:
   stage: build
   script:
-    - echo "Logging in to Docker Hub..."
-    - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
+    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
     - docker build -t $DOCKER_USERNAME/$IMAGE_NAME:$CI_COMMIT_SHA .
     - docker push $DOCKER_USERNAME/$IMAGE_NAME:$CI_COMMIT_SHA
   tags:
@@ -35,16 +35,11 @@ deploy:
   only:
     - main
   script:
-    - echo "Logging in to Docker Hub..."
-    - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
-    - echo "Pulling the image..."
+    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
     - docker pull $DOCKER_USERNAME/$IMAGE_NAME:$CI_COMMIT_SHA
-    - echo "Stopping previous container..."
     - docker stop flask_app || true
     - docker rm flask_app || true
-    - echo "Running new container..."
     - docker run -d --name flask_app -p 5000:5000 $DOCKER_USERNAME/$IMAGE_NAME:$CI_COMMIT_SHA
-    - echo "Verifying containers..."
     - docker ps
   tags:
     - docker
