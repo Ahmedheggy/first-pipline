@@ -1,93 +1,47 @@
-image: docker:24.0.7  # Use a specific Docker image
+image: docker:24.0.7
 
 variables:
-  DOCKER_HOST: unix:///var/run/docker.sock  # Use socket mounting for Docker
-  DOCKER_TLS_CERTDIR: ""  # Disable TLS to prevent authentication issues
-  POSTGRES_DB: mydatabase  # Database name for PostgreSQL
-  POSTGRES_USER: user  # Username for PostgreSQL
-  POSTGRES_PASSWORD: password  # Password for PostgreSQL
-  REDIS_HOST: redis  # Redis hostname
-  DATABASE_URL: postgresql://user:password@db:5432/mydatabase  # Database connection URL
-  COMPOSE_HTTP_TIMEOUT: 300  # Increase timeout for Docker Compose operations
-  REGISTRY: https://registry.example.com/root/first_pipeline  # Docker registry URL
-  IMAGE_NAME: first_pipeline  # Name of the Docker image to be built
+  DOCKER_HOST: unix:///var/run/docker.sock
+  DOCKER_TLS_CERTDIR: ""
+  REGISTRY: docker.io
+  IMAGE_NAME: first_pipeline
 
 stages:
-  - build  # First stage: Building the application
-  - test  # Second stage: Testing the application
-  - deploy  # Third stage: Deploying the application
+  - build
+  - deploy
 
 before_script:
-  - apk add --no-cache docker-compose  # Install Docker Compose
-  - docker --version  # Verify Docker installation
-  - docker-compose --version  # Verify Docker Compose installation
-  - echo "Ensuring Docker is ready..."
-  - sleep 5  # Allow time for Docker to initialize
-  - docker info  # Debugging: Display Docker system info
+  - apk add --no-cache docker-compose openssh-client
+  - docker --version
+  - docker-compose --version
 
 build_job:
-  stage: build  # Assign job to build stage
+  stage: build
   services:
-    - name: docker:dind  # Enable Docker-in-Docker service
-      command: ["--tls=false"]  # Disable TLS for Docker-in-Docker
+    - name: docker:dind
+      command: ["--tls=false"]
   script:
-    - apk add --no-cache curl  # Install curl for HTTP requests
-    - echo "Checking out the repository..."
-    - ls -la  # Debugging: List all files to confirm presence of compose.yml
-    - |
-      if test -f compose.yml; then
-        echo "compose.yml exists!";
-      else
-        echo "ERROR: compose.yml is missing!";
-        exit 1;
-      fi
-    - echo "Removing networks from compose.yml for build..."
-    - sed '/networks:/,/my_network/d' compose.yml > compose.build.yml  # Remove networks from a copy
-    - echo "Building the Docker images..."
-    - docker-compose -f compose.build.yml build --no-cache  # Build images without using cache
+    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+    - docker build -t $DOCKER_USERNAME/$IMAGE_NAME:$CI_COMMIT_SHA .
+    - docker push $DOCKER_USERNAME/$IMAGE_NAME:$CI_COMMIT_SHA
   tags:
-    - docker  # Assign runner tag
-
-test:
-  image: docker:24.0.7  # Use the same Docker image
-  services:
-    - docker:dind  # Enable Docker-in-Docker
-  before_script:
-    - apk add --no-cache docker-compose curl  # Install dependencies
-    - docker --version  # Verify Docker installation
-    - docker-compose --version  # Verify Docker Compose installation
-  script:
-    - echo "Starting Docker Compose services..."
-    - docker-compose up -d  # Start containers in detached mode
-    - echo "Waiting for the web service to start..."
-    - sleep 20  # Allow time for services to initialize
-    - echo "Testing web service from inside the container..."
-    - docker-compose exec web curl http://localhost:5000  # Test web service response
-    - echo "Fetching web container logs..."
-    - docker logs first_pipeline-web-1  # Fetch logs from the web container
-  after_script:
-    - echo "Stopping services..."
-    - docker-compose down  # Stop and remove services
+    - docker
 
 deploy:
-  stage: deploy  # Assign job to deploy stage
+  stage: deploy
   only:
-    - main  # Run this job only on the main branch
-  before_script:
-    - apk add --no-cache docker-compose  # Install Docker Compose
+    - main
   script:
-    - echo "Checking if image exists locally..."
-    - docker images | grep $IMAGE_NAME || (echo "Image not found locally, exiting deployment" && exit 1)
-    
+    - echo "Logging in to Docker Hub..."
+    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+    - echo "Pulling the image from Docker Hub..."
+    - docker pull $DOCKER_USERNAME/$IMAGE_NAME:$CI_COMMIT_SHA
     - echo "Stopping previous container..."
-    - docker stop flask_app || true  # Stop the running container if exists
-    - docker rm flask_app || true  # Remove the stopped container
-    
-    - echo "Starting services with Docker Compose..."
-    - docker-compose up -d  # Start containers in detached mode
-
-    - echo "Waiting for services to be healthy..."
-    - sleep 10  # Allow time for services to initialize
-
+    - docker stop flask_app || true
+    - docker rm flask_app || true
+    - echo "Running the new container..."
+    - docker run -d --name flask_app -p 5000:5000 $DOCKER_USERNAME/$IMAGE_NAME:$CI_COMMIT_SHA
     - echo "Verifying running containers..."
-    - docker ps  # List running containers
+    - docker ps
+  tags:
+    - docker

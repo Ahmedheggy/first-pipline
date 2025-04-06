@@ -37,7 +37,7 @@ services:
       test: ["CMD", "redis-cli", "ping"]  # Check if Redis is responsive
       interval: 5s  # Run the health check every 5 seconds
       retries: 5  # Retry up to 5 times before marking as unhealthy
-      start_period: 10s  # Initial delay before the first health check
+      start_period: 10s  # Initial delay before the first health check   
 
 volumes:
   db_data:  # Define a named volume for PostgreSQL data persistence
