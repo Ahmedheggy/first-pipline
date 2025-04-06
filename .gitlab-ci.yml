@@ -36,23 +36,27 @@ deploy:
   only:
     - main
   script:
-    # Login to Docker Hub
+    # Install required tools
+    - apk add --no-cache bash coreutils
+    
+    # Docker Hub login
     - echo "$DOCKER_TOKEN" | docker login -u "ahmedheggy" --password-stdin
     
-    # Pull the specific version
+    # Pull and tag the image
     - docker pull ahmedheggy/first_pipeline:$CI_COMMIT_SHA
-    
-    # Tag it as latest for compose
     - docker tag ahmedheggy/first_pipeline:$CI_COMMIT_SHA ahmedheggy/first_pipeline:latest
     
-    # Stop and remove any existing containers
+    # Clean up previous deployment
     - docker-compose down --remove-orphans || true
     
     # Deploy with compose
     - TAG=$CI_COMMIT_SHA docker-compose up -d
     
-    # Wait for services to be ready
-    - timeout 60 bash -c 'until docker-compose ps | grep "healthy"; do sleep 5; done'
+    # Wait for services to be healthy (simplified)
+    - for i in {1..12}; do
+        docker-compose ps | grep -q "healthy" && break;
+        sleep 5;
+      done
     
     # Verify deployment
     - docker-compose ps
