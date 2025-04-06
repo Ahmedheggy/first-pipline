@@ -36,34 +36,24 @@ deploy:
   only:
     - main
   script:
+    # Login to Docker Hub
     - echo "$DOCKER_TOKEN" | docker login -u "ahmedheggy" --password-stdin
-    - docker pull ahmedheggy/$IMAGE_NAME:$CI_COMMIT_SHA
     
-    # Stop and remove old container
-    - docker stop $CONTAINER_NAME || true
-    - docker rm $CONTAINER_NAME || true
+    # Pull the latest image
+    - docker pull ahmedheggy/first_pipeline:$CI_COMMIT_SHA
     
-    # Create network if it doesn't exist
-    - docker network create app_network || true
+    # Tag the image for compose
+    - docker tag ahmedheggy/first_pipeline:$CI_COMMIT_SHA ahmedheggy/first_pipeline:latest
     
-    # Run new container with network and environment
-    - >
-      docker run -d \
-        --name $CONTAINER_NAME \
-        --network app_network \
-        -p 5000:5000 \
-        -e POSTGRES_DB=$POSTGRES_DB \
-        -e POSTGRES_USER=$POSTGRES_USER \
-        -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
-        -e REDIS_HOST=redis \
-        -e DATABASE_URL=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@db:5432/$POSTGRES_DB \
-        ahmedheggy/$IMAGE_NAME:$CI_COMMIT_SHA
+    # Deploy using compose
+    - docker-compose down --remove-orphans || true
+    - TAG=$CI_COMMIT_SHA docker-compose up -d
     
-    # Connect database services to the network
-    - docker network connect app_network first-pipeline-db-1
-    - docker network connect app_network first-pipeline-redis-1
-    
-    # Verify
+    # Verify deployment
     - sleep 10
-    - docker ps
-    - docker logs $CONTAINER_NAME --tail 50
+    - docker-compose ps
+    - docker-compose logs --tail=50
+rollback:
+  script:
+    - docker-compose pull web
+    - docker-compose up -d
