@@ -1,46 +1,49 @@
+version: '3.8'
+
 services:
   web:
-    build: .  # Build the web service from the Dockerfile in the current directory
+    image: ahmedheggy/first_pipeline:${TAG:-latest}  # Uses the image from Docker Hub
     ports:
-      - "8000:5000"  # Map host port 8000 to container port 5000
+      - "8000:5000"
     networks:
-      - my_network  # Connect the web service to the custom network
+      - my_network
     depends_on:
       db:
-        condition: service_healthy  # Ensure the database is healthy before starting
+        condition: service_healthy
       redis:
-        condition: service_healthy  # Ensure Redis is healthy before starting
+        condition: service_healthy
     env_file:
-      - .env  # Load environment variables from .env file
+      - .env  # Ensure .env is available on the deployment server
 
   db:
-    image: postgres:latest  # Use the latest PostgreSQL image
-    restart: always  # Restart container automatically on failure
+    image: postgres:latest
+    restart: always
     networks:
-      - my_network  # Connect the database to the custom network
+      - my_network
     env_file:
-      - .env  # Load database credentials from .env file
+      - .env
     volumes:
-      - db_data:/var/lib/postgresql/data  # Persist database data
+      - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]  # Check if the database is ready
-      interval: 5s  # Run the health check every 5 seconds
-      retries: 5  # Retry up to 5 times before marking as unhealthy
-      start_period: 10s  # Initial delay before the first health check
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      retries: 5
+      start_period: 10s
 
   redis:
-    image: redis:latest  # Use the latest Redis image
-    restart: always  # Restart container automatically on failure
+    image: redis:latest
+    restart: always
     networks:
-      - my_network  # Connect Redis to the custom network
+      - my_network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]  # Check if Redis is responsive
-      interval: 5s  # Run the health check every 5 seconds
-      retries: 5  # Retry up to 5 times before marking as unhealthy
-      start_period: 10s  # Initial delay before the first health check   
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 5
+      start_period: 10s
 
 volumes:
-  db_data:  # Define a named volume for PostgreSQL data persistence
+  db_data:
 
 networks:
-  my_network:  # Define a custom network for communication between services
+  my_network:
+    driver: bridge
