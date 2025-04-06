@@ -1,14 +1,10 @@
 image: docker:24.0.7
 
 variables:
-  DOCKER_HOST: tcp://docker:2375
+  DOCKER_HOST: unix:///var/run/docker.sock
   DOCKER_TLS_CERTDIR: ""
   IMAGE_NAME: first_pipeline
-
-services:
-  - name: docker:dind
-    alias: docker
-    command: ["--tls=false", "--host=tcp://0.0.0.0:2375"]
+  CONTAINER_NAME: flask_app
 
 stages:
   - build
@@ -17,14 +13,21 @@ stages:
 before_script:
   - apk add --no-cache docker-compose
   - docker --version
+  - docker-compose --version
 
 build_job:
   stage: build
   script:
-    # Secure login using access token
+    # Secure Docker Hub login with token
     - echo "$DOCKER_TOKEN" | docker login -u "ahmedheggy" --password-stdin
+    
+    # Build and push the image
     - docker build -t ahmedheggy/$IMAGE_NAME:$CI_COMMIT_SHA .
     - docker push ahmedheggy/$IMAGE_NAME:$CI_COMMIT_SHA
+    
+    # Also tag as 'latest' (optional)
+    - docker tag ahmedheggy/$IMAGE_NAME:$CI_COMMIT_SHA ahmedheggy/$IMAGE_NAME:latest
+    - docker push ahmedheggy/$IMAGE_NAME:latest
   tags:
     - docker
 
@@ -33,11 +36,28 @@ deploy:
   only:
     - main
   script:
+    # Login and pull the image
     - echo "$DOCKER_TOKEN" | docker login -u "ahmedheggy" --password-stdin
     - docker pull ahmedheggy/$IMAGE_NAME:$CI_COMMIT_SHA
-    - docker stop flask_app || true
-    - docker rm flask_app || true
-    - docker run -d --name flask_app -p 5000:5000 ahmedheggy/$IMAGE_NAME:$CI_COMMIT_SHA
+    
+    # Stop and remove old container
+    - docker stop $CONTAINER_NAME || true
+    - docker rm $CONTAINER_NAME || true
+    
+    # Run new container with environment variables
+    - docker run -d \
+        --name $CONTAINER_NAME \
+        -p 5000:5000 \
+        -e POSTGRES_DB=$POSTGRES_DB \
+        -e POSTGRES_USER=$POSTGRES_USER \
+        -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
+        -e REDIS_HOST=$REDIS_HOST \
+        -e DATABASE_URL=$DATABASE_URL \
+        ahmedheggy/$IMAGE_NAME:$CI_COMMIT_SHA
+    
+    # Health check
+    - sleep 10
     - docker ps
+    - docker logs $CONTAINER_NAME --tail 50
   tags:
     - docker
