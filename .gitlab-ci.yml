@@ -37,7 +37,7 @@ deploy:
     - main
   script:
     # Install required tools
-    - apk add --no-cache bash coreutils
+    - apk add --no-cache bash coreutils curl
     
     # Docker Hub login
     - echo "$DOCKER_TOKEN" | docker login -u "ahmedheggy" --password-stdin
@@ -47,17 +47,18 @@ deploy:
     - docker tag ahmedheggy/first_pipeline:$CI_COMMIT_SHA ahmedheggy/first_pipeline:latest
     
     # Clean up previous deployment
-    - docker-compose down --remove-orphans || true
+    - docker-compose down --remove-orphans --timeout 30 || true
     
     # Deploy with compose
     - TAG=$CI_COMMIT_SHA docker-compose up -d
     
-    # Wait for services to be healthy (simplified)
-    - for i in {1..12}; do
-        docker-compose ps | grep -q "healthy" && break;
-        sleep 5;
-      done
+    # Wait for services to be healthy with timeout
+    - timeout 60 bash -c 'while ! docker-compose ps | grep -q "healthy"; do sleep 5; done'
     
     # Verify deployment
     - docker-compose ps
     - docker-compose logs --tail=50
+    
+    # Health check the web service
+    - sleep 5  # Additional wait for web service
+    - curl -f http://localhost:5000/health || (docker-compose logs web && exit 1)
